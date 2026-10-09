@@ -8,7 +8,7 @@ from page_objects.order_page import OrderPage
 
 
 ORDER_DATA = [
-    pytest.param(
+    (
         "Анарбек",
         "Иванов",
         "Москва, улица Ленина, дом 1",
@@ -16,9 +16,8 @@ ORDER_DATA = [
         "+79991234567",
         "сутки",
         "black",
-        id="black_scooter",
     ),
-    pytest.param(
+    (
         "Иван",
         "Петров",
         "Москва, улица Пушкина, дом 10",
@@ -26,14 +25,13 @@ ORDER_DATA = [
         "+79997654321",
         "двое суток",
         "grey",
-        id="grey_scooter",
     ),
 ]
 
 
 class TestOrder:
+
     @allure.title("Заказ самоката: позитивный сценарий")
-    @pytest.mark.parametrize("button_position", ["top", "bottom"])
     @pytest.mark.parametrize(
         "name, surname, address, metro, phone, rental_period, color",
         ORDER_DATA,
@@ -41,7 +39,6 @@ class TestOrder:
     def test_create_order(
         self,
         driver,
-        button_position,
         name,
         surname,
         address,
@@ -54,31 +51,69 @@ class TestOrder:
         order_page = OrderPage(driver)
 
         main_page.open()
-        main_page.click_order(button_position)
-        assert order_page.is_first_step_opened()
+        main_page.click_order_top()
 
-        order_page.fill_first_step(name, surname, address, metro, phone)
+        order_page.fill_first_step(
+            name, surname, address, metro, phone
+        )
 
         tomorrow = (date.today() + timedelta(days=1)).strftime("%d.%m.%Y")
-        order_page.fill_second_step(tomorrow, rental_period, color)
+        order_page.fill_second_step(
+            tomorrow,
+            rental_period,
+            color,
+        )
+
         order_page.submit_order()
 
         with allure.step("Проверить сообщение об успешном заказе"):
             assert order_page.is_order_created()
 
+    @allure.title("Кнопки «Заказать» открывают форму заказа")
+    @pytest.mark.parametrize("button_position", ["top", "bottom"])
+    def test_order_entry_points(self, driver, button_position):
+        main_page = MainPage(driver)
+        main_page.open()
+
+        if button_position == "top":
+            main_page.click_order_top()
+        else:
+            main_page.click_order_bottom()
+
+        assert driver.current_url == MainPage.URL
+        assert driver.find_element(*OrderPage.NAME).is_displayed()
+
     @allure.title("Логотип Самоката возвращает на главную страницу")
     def test_scooter_logo(self, driver):
         main_page = MainPage(driver)
         main_page.open()
+
         main_page.click_scooter_logo()
 
-        assert main_page.is_home_page_opened()
+        assert driver.current_url.rstrip("/") == MainPage.URL.rstrip("/")
 
     @allure.title("Логотип Яндекса открывается в новом окне")
     def test_yandex_logo(self, driver):
         main_page = MainPage(driver)
         main_page.open()
 
-        redirect_url = main_page.open_yandex_logo_and_get_redirect_url()
+        old_window = driver.current_window_handle
+        old_windows = driver.window_handles
 
-        assert "dzen.ru" in redirect_url or "dzen" in redirect_url.lower()
+        main_page.click_yandex_logo()
+
+        WebDriverWait = __import__(
+            "selenium.webdriver.support.ui",
+            fromlist=["WebDriverWait"]
+        ).WebDriverWait
+        WebDriverWait(driver, 10).until(
+            lambda d: len(d.window_handles) > len(old_windows)
+        )
+
+        new_window = next(
+            window for window in driver.window_handles
+            if window != old_window
+        )
+        driver.switch_to.window(new_window)
+
+        assert "dzen.ru" in driver.current_url or "dzen" in driver.current_url.lower()

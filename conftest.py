@@ -6,7 +6,7 @@ from selenium.webdriver.firefox.options import Options
 @pytest.fixture
 def driver():
     options = Options()
-    # Firefox is visible by default, as required for the training project.
+                                                                          
     browser = webdriver.Firefox(options=options)
     browser.maximize_window()
 
